@@ -1,0 +1,52 @@
+web:
+  image: myregistry:5000/mynginx:latest
+  expose:
+    - "80"
+  ports:
+    - "80:80"
+  links:
+    - "app-01"
+    - "app-02"
+    - "app-03"
+  hostname: "web"
+
+app-01:
+  image: myregistry:5000/myjetty:latest
+  expose:
+    - "8080"
+  ports:
+    - "8081:8080"
+  volumes_from:
+    - "data"
+  hostname: "app-01"
+
+app-02:
+  image: myregistry:5000/myjetty:latest
+  expose:
+    - "8080"
+  ports:
+    - "8082:8080"
+  volumes_from:
+    - "data"
+  hostname: "app-02"
+
+app-03:
+  image: myregistry:5000/myjetty:latest
+  expose:
+    - "8080"
+  ports:
+    - "8083:8080"
+  volumes_from:
+    - "data"
+  hostname: "app-03"
+
+# the data container is using the myjetty image in order to 
+# execute a chmod 777 on /Users from its Dockerfile so that
+# prevayler can persist its memory objects. a solution using
+# chown would make more sense of course, but this is still
+# all a bit hacky in docker
+
+data:
+  image: myregistry:5000/myjetty:latest
+  volumes:
+    - /Users

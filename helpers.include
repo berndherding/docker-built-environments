@@ -1,0 +1,86 @@
+APPLICATION_WAR_URL=https://s3.amazonaws.com/infra-assessment/companyNews.war
+STATIC_ZIP_URL=https://s3.amazonaws.com/infra-assessment/static.zip
+
+# check preconditions
+#
+check_preconditions() {
+
+  /bin/bash --version       > /dev/null && \
+  docker --version          > /dev/null && \
+  docker-compose --version  > /dev/null && \
+  which jar                 > /dev/null || \
+  echo jar not found                    && \
+  unzip | head -n 1         > /dev/null && \
+  VBoxManage --version      > /dev/null && \
+  ping -c 1 www.spiegel.de &> /dev/null || \
+  echo no internet access
+}
+
+
+
+# show usage info
+#
+usage() {
+
+  local environment=$1
+
+  cat << EOF
+Usage:
+
+  ./dockerenv_$environment.sh [OUTDEV]
+
+  where
+    OUTDEV   denotes an output device handle. defaults to /dev/null;
+             if you want to see output from tools, use /dev/stdout.
+
+EOF
+}
+
+
+
+# put entry into etc hosts
+#
+put_entry_into_etc_hosts() {
+  local ip=$1
+  local vm=$2
+
+  sudo sh -c "echo \"g/$vm/d
+\\\$a
+$ip  $vm
+.
+w\" | ed /etc/hosts" &> $OUT
+
+}
+
+# download static.zip and explode it if not yet done so
+#
+download_static_zip() {
+
+  if [ ! -d nginx/static ] ; then
+
+    echo "*** downloading static.zip from $STATIC_ZIP_URL"
+    pushd nginx &> $OUT
+    curl -o static.zip $STATIC_ZIP_URL &> $OUT
+    unzip static.zip &> $OUT
+    rm static.zip
+    popd &> $OUT
+  fi
+}
+
+
+
+# download application war and explode it if not yet done so
+#
+download_application_war() {
+
+  if [ ! -d jetty/ROOT ] ; then
+
+    echo "*** downloading application war from $APPLICATION_WAR_URL"
+    mkdir jetty/ROOT
+    pushd jetty/ROOT &> $OUT
+    curl -o application.war $APPLICATION_WAR_URL &> $OUT
+    jar xf application.war &> $OUT
+    rm application.war
+    popd &> $OUT
+  fi
+}
