@@ -2,8 +2,10 @@
 
 # include some helper function used in both training and production environment
 . helpers.include
+ 
+MYREGISTRY=myregistry
 
-OUT=${1:-/dev/null}
+OUT=/dev/stdout
 REGION=${2:-eu-central-1}
 
 check_preconditions
@@ -35,59 +37,60 @@ vpcid=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpc
 
 
 
-# check if myregistry is running on amazonec2 and get its IP
+# check if $MYREGISTRY is running on amazonec2 and get its IP
 
-docker-machine ls | grep "^myregistry" | grep amazonec2 &> /dev/null
+docker-machine ls | grep "^$MYREGISTRY" | grep amazonec2 &> /dev/null
 HAS_REGISTRY=$?
 
 # if not, create a new registry
 
 if [ $HAS_REGISTRY -ne 0 ] ; then
 
-  # is a localhost myregistry still running?
-  docker-machine ip myregistry &> /dev/null
+  # is a localhost $MYREGISTRY still running?
+  docker-machine ip $MYREGISTRY &> /dev/null
   
   if [ $? -eq 0 ] ; then
     # if so, shut it down
     echo "*** destroying existing local registry"
-    docker-machine stop myregistry  &> /dev/null
-    docker-machine rm -f myregistry &> /dev/null
+    docker-machine stop $MYREGISTRY  &> /dev/null
+    docker-machine rm -f $MYREGISTRY &> /dev/null
   fi
 
-  echo '*** create new VM ”myregistry" in AWS '$REGION'. this may take a few minutes.'
+  echo "*** create new VM \"$MYREGISTRY\" in AWS region \"$REGION\". this may take a few minutes."
   
-  docker-machine create --driver amazonec2 --amazonec2-region $REGION myregistry &> $OUT
+  # docker-machine create --driver amazonec2 --amazonec2-region $REGION $MYREGISTRY &> $OUT
+  docker-machine --native-ssh create --driver amazonec2 --amazonec2-region $REGION $MYREGISTRY &> $OUT   # TODO: comment with issue#
 fi
 
-REGISTRY_IP=$(docker-machine ip myregistry)
-eval $(docker-machine env myregistry)
+REGISTRY_IP=$(docker-machine ip $MYREGISTRY)
+eval $(docker-machine env $MYREGISTRY)
   
 if [ $HAS_REGISTRY -eq 0 ] ; then
-  echo "*** using existing \"myregistry\" VM with ip $REGISTRY_IP"
+  echo "*** using existing \"$MYREGISTRY\" VM with ip $REGISTRY_IP"
 fi
   
 
   
-# if we had to create a new myregistry VM, put it into /etc/hosts
+# if we had to create a new $MYREGISTRY VM, put it into /etc/hosts
 
-grep "^$REGISTRY_IP *myregistry" /etc/hosts &> /dev/null
+grep "^$REGISTRY_IP *$MYREGISTRY" /etc/hosts &> /dev/null
 if [ $? -ne 0 ] ; then
 
-  echo "*** put \"myregistry\" ip $REGISTRY_IP into /etc/hosts (backup in /tmp/hosts)"
+  echo "*** put \"$MYREGISTRY\" ip $REGISTRY_IP into /etc/hosts (backup in /tmp/hosts)"
 
   cp /etc/hosts /tmp
-  put_entry_into_etc_hosts $REGISTRY_IP  myregistry
+  put_entry_into_etc_hosts $REGISTRY_IP  $MYREGISTRY
 fi
 
 
 
-# start new registry on myregistry:5000 in a docker container
+# start new registry on $MYREGISTRY:5000 in a docker container
 
 if [ $HAS_REGISTRY -ne 0 ] ; then
 
-  echo '*** docker run private registry on new VM "myregistry"'
+  echo "*** docker run private registry on new VM \"$MYREGISTRY\""
   
-  docker run -d -p 5000:5000 --restart=always --name myregistry registry:2 &> $OUT
+  docker run -d -p 5000:5000 --restart=always --name $MYREGISTRY registry:2 &> $OUT
   
   echo '*** add security rule and group for registry port 5000'
   
@@ -98,7 +101,7 @@ if [ $HAS_REGISTRY -ne 0 ] ; then
   GROUP2=$(aws ec2 describe-security-groups --output text --filters Name=group-name,Values=docker-registry --query 'SecurityGroups[*].GroupId')
   INSTANCE=$(
     aws ec2 describe-instances --output text \
-    --filters Name=key-name,Values=myregistry Name=instance-state-name,Values=running \
+    --filters Name=key-name,Values=$MYREGISTRY Name=instance-state-name,Values=running \
     --query 'Reservations[*].Instances[*].InstanceId'
   )
   aws ec2 modify-instance-attribute --instance-id $INSTANCE --groups $GROUP1 $GROUP2 &> $OUT
@@ -114,10 +117,10 @@ download_static_zip
 # from "/static" (see nginx/Dockerfile) and otherwise proxy_pass to a
 # jetty appication server (see below)
 
-echo "*** build and push custom nginx image to myregistry"
+echo "*** build and push custom nginx image to $MYREGISTRY"
 
-docker build --no-cache -t myregistry:5000/mynginx:latest nginx &> $OUT
-docker push myregistry:5000/mynginx:latest &> $OUT
+docker build --no-cache -t $MYREGISTRY:5000/mynginx:latest nginx &> $OUT
+docker push $MYREGISTRY:5000/mynginx:latest &> $OUT
 
 
 
@@ -127,10 +130,10 @@ download_application_war
 
 # build custom jetty image with application from .war as ROOT application
 
-echo "*** build and push custom jetty image to myregistry"
+echo "*** build and push custom jetty image to $MYREGISTRY"
 
-docker build --no-cache -t myregistry:5000/myjetty:latest jetty &> $OUT
-docker push myregistry:5000/myjetty:latest &> $OUT
+docker build --no-cache -t $MYREGISTRY:5000/myjetty:latest jetty &> $OUT
+docker push $MYREGISTRY:5000/myjetty:latest &> $OUT
 
 
 
@@ -147,7 +150,8 @@ aws cloudformation create-stack \
   --parameters ParameterKey=myVpcId,ParameterValue=$vpcid &> $OUT
 
 echo "*** please wait for stack to complete. this may take a few minutes."
-aws cloudformation wait stack-create-complete --stack-name dockerenv --output text --no-paginate &> $OUT
+#aws cloudformation wait stack-create-complete --stack-name dockerenv --output text --no-paginate &> $OUT
+aws cloudformation wait stack-create-complete --stack-name dockerenv --output text &> $OUT   # TODO: comment with issue#
 
 LOAD_BALANCER_NAME=$(aws cloudformation describe-stack-resources --stack-name dockerenv --query 'StackResources[?ResourceType==`AWS::ElasticLoadBalancing::LoadBalancer`]'.PhysicalResourceId --output text)
 
@@ -164,6 +168,6 @@ NOTE
 before you call the script again, make sure to detroy the
 dockerenv cloudformation stack via AWS console.
 
-if you destroy the myregistry as well, make sure to clean up
+if you destroy the $MYREGISTRY as well, make sure to clean up
 the corresponding security groups, too.
 EOF
