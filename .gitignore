@@ -1,0 +1,3 @@
+*.swp
+jetty/ROOT
+nginx/static
