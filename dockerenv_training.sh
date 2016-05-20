@@ -3,13 +3,19 @@
 # include some helper function used in both training and production environment
 . helpers.include
 
+ENVIRONMENT=local
+
 OUT=${1:-/dev/null}
+
+if [ "$ENVIRONMEN" = "aws" ] ; then
+  REGION=${2:-eu-central-1}
+fi
 
 check_preconditions
 
 
 
-usage training
+usage $ENVIRONMENT
 
 cat << EOF
   PRECONDITIONS:
@@ -23,55 +29,19 @@ read
 
 
 
-# check if myregistry is running and get its IP
+# make sure there is a proper aws configuration
+if [ "$ENVIRONMENT" = "aws" ] ; then
 
-docker-machine ls | grep "^myregistry" &> /dev/null
-HAS_REGISTRY=$?
+  echo '*** please make sure all these values are set. if they are, just confirm them:'
 
-# if not, create a new registry
+  aws configure
 
-if [ $HAS_REGISTRY -ne 0 ] ; then
-
-  echo '*** create new VM ”myregistry”'
-  
-  docker-machine create --driver virtualbox myregistry &> $OUT
-fi
-  
-REGISTRY_IP=$(docker-machine ip myregistry)
-eval $(docker-machine env myregistry)
-
-if [ $HAS_REGISTRY -eq 0 ] ; then
-  echo "*** using existing \"myregistry\" VM with ip $REGISTRY_IP"
+  vpcid=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text)
 fi
 
 
 
-# if we had to create a new myregistry VM, put it into /etc/hosts
-
-grep "^$REGISTRY_IP *myregistry" /etc/hosts &> /dev/null
-if [ $? -ne 0 ] ; then
-
-  echo "*** put \"myregistry\" ip $REGISTRY_IP into /etc/hosts (backup in /tmp/hosts)"
-
-  cp /etc/hosts /tmp
-  put_entry_into_etc_hosts $REGISTRY_IP  myregistry
-fi
-
-
-
-
-# start new registry on myregistry:5000 in a docker container
-
-if [ $HAS_REGISTRY -ne 0 ] ; then
-
-  echo '*** docker run private registry on new VM "myregistry"'
-
-  docker run -d -p 5000:5000 --restart=always --name myregistry registry:2 &> $OUT
-fi
-
-
-
-download_static_zip
+download_static_zip $STATIC_ZIP_URL
 
 
 
@@ -86,11 +56,11 @@ docker push myregistry:5000/mynginx:latest &> $OUT
 
 
 
-download_dockerenv_war
+download_application_war
 
 
 
-# build custom jetty image with dockerenv as ROOT application
+# build custom jetty image with application from .war as ROOT application
 
 echo "*** build and push custom jetty image to myregistry"
 

@@ -3,7 +3,7 @@
 # include some helper function used in both training and production environment
 . helpers.include
 
-ENVIRONMENT=aws
+ENVIRONMENT=local
 
 OUT=${1:-/dev/null}
 
@@ -31,18 +31,16 @@ read
 
 
 # make sure there is a proper aws configuration
-if [ "$ENVIRONMENT" = "aws" ] ; then
 
-  echo '*** please make sure all these values are set. if they are, just confirm them:'
+echo '*** please make sure all these values are set. if they are, just confirm them:'
 
-  aws configure
+aws configure
 
-  vpcid=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text)
-fi
+vpcid=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text)
 
 
 
-download_static_zip $STATIC_ZIP_URL
+download_static_zip
 
 
 

@@ -56,11 +56,13 @@ w\" | ed /etc/hosts" &> $OUT
 #
 download_static_zip() {
 
+  local static_zip_url=$1
+
   if [ ! -d nginx/static ] ; then
 
-    echo "*** downloading static.zip from $STATIC_ZIP_URL"
+    echo "*** downloading static.zip from $static_zip_url"
     pushd nginx &> $OUT
-    curl -o static.zip $STATIC_ZIP_URL &> $OUT
+    curl -o static.zip $static_zip_url &> $OUT
     unzip static.zip &> $OUT
     rm static.zip
     popd &> $OUT
