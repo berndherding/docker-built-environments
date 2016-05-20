@@ -58,7 +58,8 @@ if [ $HAS_REGISTRY -ne 0 ] ; then
 
   echo "*** create new VM \"$MYREGISTRY\" in AWS region \"$REGION\". this may take a few minutes."
   
-  docker-machine create --driver amazonec2 --amazonec2-region $REGION $MYREGISTRY &> $OUT
+  # docker-machine create --driver amazonec2 --amazonec2-region $REGION $MYREGISTRY &> $OUT
+  docker-machine --native-ssh create --driver amazonec2 --amazonec2-region $REGION $MYREGISTRY &> $OUT   # TODO: comment with issue#
 fi
 
 REGISTRY_IP=$(docker-machine ip $MYREGISTRY)
@@ -149,7 +150,8 @@ aws cloudformation create-stack \
   --parameters ParameterKey=myVpcId,ParameterValue=$vpcid &> $OUT
 
 echo "*** please wait for stack to complete. this may take a few minutes."
-aws cloudformation wait stack-create-complete --stack-name dockerenv --output text --no-paginate &> $OUT
+#aws cloudformation wait stack-create-complete --stack-name dockerenv --output text --no-paginate &> $OUT
+aws cloudformation wait stack-create-complete --stack-name dockerenv --output text &> $OUT   # TODO: comment with issue#
 
 LOAD_BALANCER_NAME=$(aws cloudformation describe-stack-resources --stack-name dockerenv --query 'StackResources[?ResourceType==`AWS::ElasticLoadBalancing::LoadBalancer`]'.PhysicalResourceId --output text)
 
