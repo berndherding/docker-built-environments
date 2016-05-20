@@ -6,7 +6,7 @@
 MYREGISTRY=myregistry
 DOCKERENV_URL=my.dockerenv
 
-OUT=${1:-/dev/null}
+OUT=/dev/stdout
 
 check_preconditions
 
